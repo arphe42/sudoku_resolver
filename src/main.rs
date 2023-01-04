@@ -102,6 +102,10 @@ fn main() {
         //std::process::Command::new("clear").status().unwrap();
         print!("\x1B[2J\x1B[1;1H");
         print_board(board);
+        
+        println!("enter: q to quit");
+        println!("enter: change [x] [y] [number] to change a number in the grid");
+        println!("enter: solve to solve the grid");
 
         user_input.clear();
         io::stdin().read_line(&mut user_input).unwrap();
