@@ -1,40 +1,48 @@
 {
-  description = "rust environment";
-
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    flake-utils.url = "github:numtide/flake-utils";
-    rust-overlay.url = "github:oxalica/rust-overlay";
+    flake-parts = {
+      inputs.nixpkgs-lib.follows = "nixpkgs";
+      url = "github:hercules-ci/flake-parts";
+    };
+
+    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
   };
 
-  outputs = { self, nixpkgs, flake-utils, rust-overlay, ... }:
-    flake-utils.lib.eachDefaultSystem (system:
-    let
-      overlays = [ (import rust-overlay) ];
-      pkgs = import nixpkgs { inherit system overlays; };
-      rustVersion = pkgs.rust-bin.stable.latest.default;
+  outputs = inputs:
+    inputs.flake-parts.lib.mkFlake { inherit inputs; } {
+      systems = [ "x86_64-linux" ];
 
-      rustPlatform = pkgs.makeRustPlatform {
-        cargo = rustVersion;
-        rustc = rustVersion;
-      };
+      perSystem = { pkgs, lib, config, ... }:
+        let
+          inherit (lib.importTOML (inputs.self + "/Cargo.toml")) package;
+        in rec
+        {
+          packages = {
+            default = pkgs.rustPlatform.buildRustPackage {
+              inherit (package) version;
 
-      myRustBuild = rustPlatform.buildRustPackage {
-        pname = "sudoku_resolver";
-        version = "0.1.0";
-        src = ./.;
+              cargoLock.lockFile = (inputs.self + "/Cargo.lock");
+              pname = package.name;
+              src = inputs.self;
+            };
+          };
 
-        cargoLock.lockFile = ./Cargo.lock;
-      };
+          devShells.default = pkgs.mkShell {
+            packages = with pkgs; [
+              cargo
+              rustc
+              rustfmt
+            ];
+          };
 
-    in {
-      packages = {
-        rustPackage = myRustBuild;
-      };
-      defaultPackage = myRustBuild;
-      devShell = pkgs.mkShell {
-        buildInputs = 
-        [ (rustVersion.override { extensions = [ "rust-src" ]; }) ];
-      };
-    });
+          apps = {
+            default = {
+              program = "${config.packages.default}/bin/sudoku_resolver";
+              type = "app";
+            };
+          };
+
+          formatter = pkgs.nixpkgs-fmt;
+        };
+    };
 }
